@@ -1,0 +1,68 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "MockOracle",
+  "sourceName": "contracts/MockOracle.sol",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "int256",
+          "name": "initialValue",
+          "type": "int256"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "inputs": [],
+      "name": "latestRoundData",
+      "outputs": [
+        {
+          "internalType": "uint80",
+          "name": "roundId",
+          "type": "uint80"
+        },
+        {
+          "internalType": "int256",
+          "name": "answer",
+          "type": "int256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "startedAt",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "updatedAt",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint80",
+          "name": "answeredInRound",
+          "type": "uint80"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "int256",
+          "name": "value",
+          "type": "int256"
+        }
+      ],
+      "name": "setValue",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x608060405234801561000f575f80fd5b5060405161011b38038061011b83398101604081905261002e91610035565b5f5561004c565b5f60208284031215610045575f80fd5b5051919050565b60c3806100585f395ff3fe6080604052348015600e575f80fd5b50600436106030575f3560e01c80635093dc7d146034578063feaf968c146045575b5f80fd5b6043603f3660046077565b5f55565b005b5f5460408051600180825260208201939093524281830181905260608201526080810192909252519081900360a00190f35b5f602082840312156086575f80fd5b503591905056fea2646970667358221220fd0519a180f7cb2b5ed17ba1c0f2524f3db55f7dc4ba2813117db49136f36bc364736f6c63430008180033",
+  "deployedBytecode": "0x6080604052348015600e575f80fd5b50600436106030575f3560e01c80635093dc7d146034578063feaf968c146045575b5f80fd5b6043603f3660046077565b5f55565b005b5f5460408051600180825260208201939093524281830181905260608201526080810192909252519081900360a00190f35b5f602082840312156086575f80fd5b503591905056fea2646970667358221220fd0519a180f7cb2b5ed17ba1c0f2524f3db55f7dc4ba2813117db49136f36bc364736f6c63430008180033",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}
