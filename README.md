@@ -1,6 +1,12 @@
 # InsureX — Decentralized Insurance Platform
 
-![InsureX Banner](./public/banner.png)
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![Solidity](https://img.shields.io/badge/Solidity-0.8.20-363636?logo=solidity)
+![React](https://img.shields.io/badge/React-18-61DAFB?logo=react)
+![FastAPI](https://img.shields.io/badge/FastAPI-Python-009688?logo=fastapi)
+![Hardhat](https://img.shields.io/badge/Hardhat-Ethereum-yellow?logo=ethereum)
+![Groq](https://img.shields.io/badge/AI-Groq%20Llama%203.1-orange)
+
 
 > AI-powered insurance decoder meets blockchain-automated 
 > claims settlement. No paperwork. No delays. No fine print surprises.
@@ -90,27 +96,36 @@ delay, deny, or negotiate payouts arbitrarily.
 ---
 
 ## Architecture
-User
-│
-├── React Frontend (Vite)
-│     ├── Policy Decoder UI
-│     ├── Policy Comparison UI
-│     ├── Dashboard (NFT policies)
-│     └── File Claim Portal
-│
-├── MetaMask (wallet + tx signing)
-│
-├── FastAPI Backend
-│     ├── /decode        → Groq AI analysis
-│     ├── /compare       → AI policy comparison
-│     ├── /pricing/*     → Risk-based premium calc
-│     ├── /oracle/weather → OpenWeatherMap feed
-│     ├── /oracle/flight  → AviationStack feed
-│     └── /oracle/settle  → Blockchain payout trigger
-│
-└── Ethereum Blockchain (Sepolia)
-├── PolicyNFT.sol   → ERC-721 policy tokens
-└── AutoClaim.sol   → Parametric trigger engine
+```mermaid
+graph TD
+    User([👤 User]) --> Frontend
+
+    Frontend[⚛️ React Frontend\nVite + TypeScript] --> MetaMask
+    Frontend --> Backend
+
+    MetaMask[🦊 MetaMask\nWallet + TX Signing] --> Blockchain
+
+    Backend[🐍 FastAPI Backend] --> Groq
+    Backend --> WeatherAPI
+    Backend --> FlightAPI
+    Backend --> Blockchain
+
+    Groq[🤖 Groq AI\nLlama 3.1\nPolicy Decoder\nComparison\nEvidence Check]
+
+    WeatherAPI[🌧️ OpenWeatherMap\nRainfall Oracle]
+    FlightAPI[✈️ AviationStack\nFlight Delay Oracle]
+
+    Blockchain[⛓️ Ethereum Sepolia] --> PolicyNFT
+    Blockchain --> AutoClaim
+
+    PolicyNFT[📋 PolicyNFT.sol\nERC-721 Tokens\nPremium Pool\nClaim Management]
+    AutoClaim[⚡ AutoClaim.sol\nParametric Triggers\nAuto Payouts]
+
+    style Frontend fill:#EFF6FF,stroke:#2563EB
+    style Backend fill:#F0FDF4,stroke:#16A34A
+    style Blockchain fill:#FEF3C7,stroke:#D97706
+    style Groq fill:#FDF4FF,stroke:#9333EA
+```
 
 ---
 
