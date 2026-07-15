@@ -6,20 +6,9 @@ interface NavbarProps {
   onConnect: () => void;
 }
 
-const LANGUAGES = [
-  { code: 'en', name: 'English', flag: '🇬🇧' },
-  { code: 'hi', name: 'हिंदी', flag: '🇮🇳' },
-  { code: 'ta', name: 'தமிழ்', flag: '🇮🇳' },
-  { code: 'te', name: 'తెలుగు', flag: '🇮🇳' },
-  { code: 'bn', name: 'বাংলা', flag: '🇮🇳' },
-  { code: 'mr', name: 'मराठी', flag: '🇮🇳' }
-];
-
 const Navbar: React.FC<NavbarProps> = ({ account, onConnect }) => {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [lang, setLang] = useState(() => localStorage.getItem("insurex_language") || "en");
-  const [langDropdownOpen, setLangDropdownOpen] = useState(false);
   const location = useLocation();
 
   useEffect(() => {
@@ -28,39 +17,6 @@ const Navbar: React.FC<NavbarProps> = ({ account, onConnect }) => {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  useEffect(() => {
-    const handleLangChange = (e: any) => {
-      const newLang = e.detail?.language || localStorage.getItem("insurex_language") || "en";
-      setLang(newLang);
-    };
-    window.addEventListener('languageChange', handleLangChange as EventListener);
-    window.addEventListener('storage', handleLangChange);
-    return () => {
-      window.removeEventListener('languageChange', handleLangChange as EventListener);
-      window.removeEventListener('storage', handleLangChange);
-    };
-  }, []);
-
-  useEffect(() => {
-    const handleOutsideClick = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (!target.closest('.lang-selector-container')) {
-        setLangDropdownOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleOutsideClick);
-    return () => document.removeEventListener('mousedown', handleOutsideClick);
-  }, []);
-
-  const changeLanguage = (newLang: string) => {
-    localStorage.setItem("insurex_language", newLang);
-    window.dispatchEvent(new CustomEvent("languageChange", { 
-      detail: { language: newLang } 
-    }));
-    setLang(newLang);
-    setLangDropdownOpen(false);
-  };
-
   const links = [
     { to: '/',         label: 'Home' },
     { to: '/decode',   label: 'Decode Policy' },
@@ -68,8 +24,6 @@ const Navbar: React.FC<NavbarProps> = ({ account, onConnect }) => {
     { to: '/dashboard',label: 'Dashboard' },
     { to: '/claim',    label: 'File Claim' },
   ];
-
-  const currentFlag = LANGUAGES.find(l => l.code === lang)?.flag || '🌐';
 
   return (
     <nav
@@ -125,39 +79,8 @@ const Navbar: React.FC<NavbarProps> = ({ account, onConnect }) => {
           })}
         </div>
 
-        {/* Desktop right-side elements: Language Selector & Wallet button */}
+        {/* Desktop right-side elements: Wallet button */}
         <div className="hidden md:flex items-center gap-3">
-          {/* Global Language Selector Dropdown */}
-          <div className="relative lang-selector-container flex items-center">
-            <button
-              onClick={() => setLangDropdownOpen(!langDropdownOpen)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-[#E5E0D8] shadow-sm hover:bg-[#F0EDE6] transition-colors text-[#1A1A2E] text-xs font-semibold"
-            >
-              <span>{currentFlag}</span>
-              <span className="uppercase tracking-wider">{lang}</span>
-              <span className="text-[8px] text-[#6B7280]">▼</span>
-            </button>
-            {langDropdownOpen && (
-              <div className="absolute right-0 top-full mt-2 w-44 bg-white border border-[#E5E0D8] rounded-xl shadow-lg z-50 overflow-hidden py-1">
-                {LANGUAGES.map((l) => (
-                  <button
-                    key={l.code}
-                    onClick={() => changeLanguage(l.code)}
-                    className={`w-full text-left px-4 py-2 text-xs flex items-center justify-between hover:bg-[#F0EDE6] transition-colors ${
-                      lang === l.code ? 'font-bold text-blue bg-blue-50/20' : 'text-[#1A1A2E]'
-                    }`}
-                  >
-                    <span className="flex items-center gap-2">
-                      <span>{l.flag}</span>
-                      <span>{l.name}</span>
-                    </span>
-                    {lang === l.code && <span className="text-blue text-[10px]">✓</span>}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
           {account ? (
             <div className="flex items-center gap-2.5 px-4 py-2 rounded-full bg-white border border-[#E5E0D8] shadow-sm">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -204,24 +127,6 @@ const Navbar: React.FC<NavbarProps> = ({ account, onConnect }) => {
                 </span>
               </Link>
             ))}
-            
-            {/* Mobile Language Selector */}
-            <div className="px-6 border-b border-[#F8F6F1] flex items-center justify-between" style={{ height: 48 }}>
-              <span className="text-xs font-semibold text-[#6B7280] flex items-center gap-1.5">
-                <span>🌐</span> Select Language
-              </span>
-              <select
-                value={lang}
-                onChange={(e) => { changeLanguage(e.target.value); setMenuOpen(false); }}
-                className="text-xs bg-white border border-[#E5E0D8] rounded-lg px-2.5 py-1 text-ink focus:outline-none focus:border-blue"
-              >
-                {LANGUAGES.map((l) => (
-                  <option key={l.code} value={l.code}>
-                    {l.flag} {l.name}
-                  </option>
-                ))}
-              </select>
-            </div>
 
             {/* Wallet status */}
             <div className="bg-[#F8F6F1] px-6 py-4 flex items-center justify-between">
