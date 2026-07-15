@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { API_URL } from '../config/env';
 
 const GRADE_STYLES: Record<string, { bg: string; text: string; border: string }> = {
   A: { bg: '#d1fae5', text: '#065f46', border: '#6ee7b7' },
@@ -7,6 +8,15 @@ const GRADE_STYLES: Record<string, { bg: string; text: string; border: string }>
   D: { bg: '#ffedd5', text: '#9a3412', border: '#fdba74' },
   F: { bg: '#fee2e2', text: '#991b1b', border: '#fca5a5' },
 };
+
+const LANGUAGES = [
+  { code: 'en', name: 'English', flag: '🇬🇧' },
+  { code: 'hi', name: 'हिंदी', flag: '🇮🇳' },
+  { code: 'ta', name: 'தமிழ்', flag: '🇮🇳' },
+  { code: 'te', name: 'తెలుగు', flag: '🇮🇳' },
+  { code: 'bn', name: 'বাংলা', flag: '🇮🇳' },
+  { code: 'mr', name: 'मराठी', flag: '🇮🇳' }
+];
 
 const SpinnerIcon = () => (
   <svg className="w-5 h-5 animate-spin text-[#1A1A2E]" viewBox="0 0 24 24" fill="none">
@@ -23,6 +33,30 @@ export const Compare: React.FC = () => {
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<any | null>(null);
+  const [language, setLanguage] = useState(() => localStorage.getItem("insurex_language") || "en");
+
+  const langNames: Record<string, string> = {
+    en: "English", hi: "हिंदी", ta: "தமிழ்",
+    te: "తెలుగు", bn: "বাংলা", mr: "मराठी"
+  };
+
+  useEffect(() => {
+    const handleLangChange = (e: any) => {
+      setLanguage(e.detail?.language || localStorage.getItem("insurex_language") || "en");
+    };
+    window.addEventListener('languageChange', handleLangChange as EventListener);
+    return () => {
+      window.removeEventListener('languageChange', handleLangChange as EventListener);
+    };
+  }, []);
+
+  const changeLanguage = (newLang: string) => {
+    localStorage.setItem("insurex_language", newLang);
+    setLanguage(newLang);
+    window.dispatchEvent(new CustomEvent("languageChange", { 
+      detail: { language: newLang } 
+    }));
+  };
 
   const loadSamples = () => {
     setLabelA("PremiumGuard Plus");
@@ -64,7 +98,12 @@ export const Compare: React.FC = () => {
     setResult(null);
 
     try {
-      const response = await fetch('http://localhost:8000/compare', {
+      const isEnglish = language === 'en';
+      const endpoint = isEnglish 
+        ? `${API_URL}/compare` 
+        : `${API_URL}/compare/multilang?language=${language}`;
+
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -170,6 +209,22 @@ export const Compare: React.FC = () => {
               </div>
             )}
 
+            {/* Language Selector inside Form */}
+            <div className="flex flex-col gap-1.5 max-w-xs">
+              <label className={labelCls}>Select Output Language:</label>
+              <select
+                value={language}
+                onChange={(e) => changeLanguage(e.target.value)}
+                className={inputCls}
+              >
+                {LANGUAGES.map((l) => (
+                  <option key={l.code} value={l.code}>
+                    {l.flag} {l.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div className="flex flex-col sm:flex-row gap-3 mt-2">
               <button
                 type="submit"
@@ -204,11 +259,16 @@ export const Compare: React.FC = () => {
           <div className="flex flex-col gap-10 animate-fade-in">
             
             {/* Section 2: Winner Banner */}
-            <div className={`border p-6 rounded-2xl text-center shadow-sm ${
+            <div className={`border p-6 rounded-2xl text-center shadow-sm relative ${
               result.winner === 'A' || result.winner === 'A Wins' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' :
               result.winner === 'B' || result.winner === 'B Wins' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' :
               'bg-amber-50 border-amber-200 text-amber-800'
             }`}>
+              <div className="absolute top-3 right-3">
+                <span className="pill pill-blue text-[9px] py-0.5 px-2">
+                  Results in: {langNames[language]}
+                </span>
+              </div>
               <h2 className="serif text-3xl font-bold mb-2">
                 {result.winner === 'A' ? `${labelA} Wins 🏆` :
                  result.winner === 'B' ? `${labelB} Wins 🏆` :
@@ -273,7 +333,7 @@ export const Compare: React.FC = () => {
               <div className="p-5 border-b border-[#E5E0D8] bg-[#F9F8F6]">
                 <h3 className="font-bold text-[#1A1A2E] uppercase tracking-wider text-[10px]">Comparison Matrix</h3>
               </div>
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto comparison-table-wrapper">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
                     <tr className="bg-gray-50 border-b border-[#E5E0D8] text-[10px] uppercase font-bold text-[#6B7280] tracking-wider">
@@ -416,6 +476,14 @@ export const Compare: React.FC = () => {
         )}
 
       </div>
+      <style>{`
+        @media (max-width: 768px) {
+          .comparison-table-wrapper th, 
+          .comparison-table-wrapper td {
+            min-width: 120px !important;
+          }
+        }
+      `}</style>
     </div>
   );
 };

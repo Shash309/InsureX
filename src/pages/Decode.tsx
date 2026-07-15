@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { AIAnalysisResult } from '../types';
+import { API_URL } from '../config/env';
 
 interface DecodeProps {
   account: string | null;
@@ -16,6 +17,15 @@ const GRADE_STYLES: Record<string, { bg: string; text: string; border: string }>
   F: { bg: '#fee2e2', text: '#991b1b', border: '#fca5a5' },
 };
 
+const LANGUAGES = [
+  { code: 'en', name: 'English', flag: '🇬🇧' },
+  { code: 'hi', name: 'हिंदी', flag: '🇮🇳' },
+  { code: 'ta', name: 'தமிழ்', flag: '🇮🇳' },
+  { code: 'te', name: 'తెలుగు', flag: '🇮🇳' },
+  { code: 'bn', name: 'বাংলা', flag: '🇮🇳' },
+  { code: 'mr', name: 'मराठी', flag: '🇮🇳' }
+];
+
 const SpinnerIcon = () => (
   <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none">
     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
@@ -28,6 +38,28 @@ export const Decode: React.FC<DecodeProps> = ({ provider: _p, signer: _s }) => {
   const [analyzing, setAnalyzing]     = useState(false);
   const [result, setResult]           = useState<AIAnalysisResult | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [language, setLanguage] = useState(
+    localStorage.getItem("insurex_language") || "en"
+  );
+
+  useEffect(() => {
+    const handler = (e: any) => setLanguage(e.detail.language);
+    window.addEventListener("languageChange", handler as EventListener);
+    return () => window.removeEventListener("languageChange", handler as EventListener);
+  }, []);
+
+  const changeLanguage = (newLang: string) => {
+    localStorage.setItem("insurex_language", newLang);
+    setLanguage(newLang);
+    window.dispatchEvent(new CustomEvent("languageChange", { 
+      detail: { language: newLang } 
+    }));
+  };
+
+  const langNames: Record<string, string> = {
+    en: "English", hi: "हिंदी", ta: "தமிழ்",
+    te: "తెలుగు", bn: "বাংলা", mr: "मराठी"
+  };
 
   const SAMPLE_TEXT =
     'This policy covers hospitalization expenses up to $50,000 per year. ' +
@@ -62,10 +94,16 @@ export const Decode: React.FC<DecodeProps> = ({ provider: _p, signer: _s }) => {
     setResult(null);
 
     try {
-      const response = await fetch('http://localhost:8000/decode', {
+      const isEnglish = language === 'en';
+      const endpoint = isEnglish ? `${API_URL}/decode` : `${API_URL}/decode/multilang`;
+      const body = isEnglish 
+        ? { text: pastedText.trim() }
+        : { text: pastedText.trim(), language: language };
+
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: pastedText.trim() }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
@@ -150,6 +188,24 @@ export const Decode: React.FC<DecodeProps> = ({ provider: _p, signer: _s }) => {
                   </button>
                 </div>
 
+                {/* ── Language Selector ── */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="block text-[10px] uppercase font-bold text-[#6B7280] tracking-wider">
+                    Select Output Language:
+                  </label>
+                  <select
+                    value={language}
+                    onChange={(e) => changeLanguage(e.target.value)}
+                    className="w-full border border-[#E5E0D8] rounded-xl px-4 py-2.5 text-sm text-[#1A1A2E] bg-white focus:outline-none focus:border-[#2563EB] transition-colors"
+                  >
+                    {LANGUAGES.map((l) => (
+                      <option key={l.code} value={l.code}>
+                        {l.flag} {l.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 <button
                   type="submit"
                   disabled={!pastedText.trim() || analyzing}
@@ -197,7 +253,12 @@ export const Decode: React.FC<DecodeProps> = ({ provider: _p, signer: _s }) => {
                     <span className="text-[9px] uppercase font-bold tracking-widest mt-0.5" style={{ color: gradeStyle!.text }}>Grade</span>
                   </div>
                   <div>
-                    <h3 className="serif text-xl font-semibold mb-2" style={{ color: '#1A1A2E' }}>AI Audit Summary</h3>
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                      <h3 className="serif text-xl font-semibold text-ink">AI Audit Summary</h3>
+                      <span className="pill pill-blue text-[10px] py-0.5 px-2">
+                        Results in: {langNames[language]}
+                      </span>
+                    </div>
                     <p className="text-sm text-[#6B7280] leading-relaxed">{result.summary}</p>
                   </div>
                 </div>
@@ -205,7 +266,7 @@ export const Decode: React.FC<DecodeProps> = ({ provider: _p, signer: _s }) => {
                 {/* Reasoning */}
                 <div className="card p-5">
                   <p className="text-[10px] uppercase font-bold text-[#6B7280] tracking-wider mb-2">Audit Reasoning</p>
-                  <p className="text-sm leading-relaxed" style={{ color: '#1A1A2E' }}>{result.grade_reason}</p>
+                  <p className="text-sm leading-relaxed text-ink">{result.grade_reason}</p>
                 </div>
 
                 {/* Clauses grid */}

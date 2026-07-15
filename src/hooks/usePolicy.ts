@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { ethers } from 'ethers';
 import { useContract } from './useContract';
 import { Policy, PolicyStatus } from '../types';
+import { POLICY_NFT_ADDRESS } from '../config/contracts';
 
 export const usePolicy = (provider: any, signer: any, account: string | null) => {
   const { policyContract } = useContract(provider, signer);
@@ -109,11 +110,25 @@ export const usePolicy = (provider: any, signer: any, account: string | null) =>
    *   getPolicy(tokenId)         → Policy struct
    */
   const getPolicies = useCallback(async (): Promise<Policy[]> => {
+    const contractAddress = POLICY_NFT_ADDRESS;
+    if (!contractAddress || contractAddress === "") {
+      setError("Contract not deployed. Run npm run deploy:local first.");
+      return [];
+    }
+
     if (!policyContract || !account) return [];
 
+    let tokenIds: bigint[] = [];
     try {
-      const tokenIds: bigint[] = await policyContract.getHolderPolicies(account);
+      tokenIds = await policyContract.getHolderPolicies(account);
+    } catch (err: any) {
+      console.error("Contract call failed:", err);
+      const msg = "Smart contract not found. Please redeploy contracts.";
+      setError(msg);
+      throw new Error(msg);
+    }
 
+    try {
       const policies = await Promise.all(
         tokenIds.map(async (idBig: bigint) => {
           const id  = Number(idBig);
@@ -137,7 +152,7 @@ export const usePolicy = (provider: any, signer: any, account: string | null) =>
     } catch (err: any) {
       console.error('Error fetching policies:', err);
       setError(err.message || 'Failed to fetch policies');
-      return [];
+      throw err;
     }
   }, [policyContract, account]);
 

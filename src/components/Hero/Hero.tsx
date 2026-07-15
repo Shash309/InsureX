@@ -120,20 +120,38 @@ const Hero: React.FC = () => {
 
       {/* ── Stats bar ─────────────────────────────────────── */}
       <div ref={statsRef} className="max-w-5xl mx-auto px-6 mb-24">
-        <div className="card rounded-2xl px-8 py-6 grid grid-cols-2 md:grid-cols-4 gap-6 divide-x-0 md:divide-x divide-y md:divide-y-0 divide-[#E5E0D8]">
+        <div className="card rounded-2xl px-8 py-6 grid grid-cols-2 md:grid-cols-4 gap-6 divide-x-0 md:divide-x divide-y md:divide-y-0 divide-[#E5E0D8] stats-card">
           {STATS.map(({ value, label }) => (
             <div key={label} className="flex flex-col items-center py-4 md:py-0">
               <span
-                className="mono font-semibold"
+                className="mono font-semibold stats-value"
                 style={{ color: '#1A1A2E', fontSize: '36px', opacity: 1 }}
               >{value}</span>
               <span
-                className="text-xs mt-1 text-center"
+                className="text-xs mt-1 text-center stats-label"
                 style={{ color: '#6B7280', opacity: 1 }}
               >{label}</span>
             </div>
           ))}
         </div>
+        <style>{`
+          @media (max-width: 480px) {
+            .stats-card {
+              grid-template-columns: 1fr 1fr !important;
+              padding: 16px 8px !important;
+              gap: 12px 8px !important;
+            }
+            .stats-label {
+              font-size: 10px !important;
+              line-height: 1.2 !important;
+              white-space: normal !important;
+              text-align: center !important;
+            }
+            .stats-value {
+              font-size: 28px !important;
+            }
+          }
+        `}</style>
       </div>
 
       {/* ── How it works ──────────────────────────────────── */}

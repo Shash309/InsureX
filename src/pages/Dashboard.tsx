@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { usePolicy } from '../hooks/usePolicy';
 import { Policy, PolicyStatus } from '../types';
+import { API_URL } from '../config/env';
 
 interface DashboardProps {
   account: string | null;
@@ -111,7 +112,7 @@ const MintForm: React.FC<MintFormProps> = ({ account, mintPolicy, loading, onMin
         let url = "";
         let body = {};
         if (policyType === 'travel') {
-          url = "http://localhost:8000/pricing/travel";
+          url = `${API_URL}/pricing/travel`;
           body = {
             coverage_eth: covNum,
             duration_days: duration,
@@ -119,7 +120,7 @@ const MintForm: React.FC<MintFormProps> = ({ account, mintPolicy, loading, onMin
             airline: airline || ""
           };
         } else if (policyType === 'crop') {
-          url = "http://localhost:8000/pricing/crop";
+          url = `${API_URL}/pricing/crop`;
           body = {
             coverage_eth: covNum,
             duration_days: duration,
@@ -128,7 +129,7 @@ const MintForm: React.FC<MintFormProps> = ({ account, mintPolicy, loading, onMin
             season: season || "rabi"
           };
         } else if (policyType === 'health') {
-          url = "http://localhost:8000/pricing/health";
+          url = `${API_URL}/pricing/health`;
           body = {
             coverage_eth: covNum,
             duration_days: duration,
@@ -221,7 +222,7 @@ const MintForm: React.FC<MintFormProps> = ({ account, mintPolicy, loading, onMin
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="grid sm:grid-cols-2 gap-5">
+      <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-5">
         {/* Policy Type */}
         <div>
           <label className={labelCls}>Policy Type</label>
@@ -390,7 +391,7 @@ const MintForm: React.FC<MintFormProps> = ({ account, mintPolicy, loading, onMin
         </div>
 
         {/* IPFS Hash — full width */}
-        <div className="sm:col-span-2">
+        <div className="col-span-1 md:col-span-2">
           <label className={labelCls}>IPFS Metadata Hash</label>
           <input
             type="text"
@@ -406,10 +407,10 @@ const MintForm: React.FC<MintFormProps> = ({ account, mintPolicy, loading, onMin
 
         {/* Premium Breakdown Card — full width */}
         {breakdown && (
-          <div className="sm:col-span-2 p-5 rounded-xl border border-[#E5E0D8] bg-[#F9F8F6] text-xs">
+          <div className="col-span-1 md:col-span-2 p-5 rounded-xl border border-[#E5E0D8] bg-[#F9F8F6] text-xs premium-breakdown">
             <h4 className="font-bold text-[#1A1A2E] uppercase tracking-wider text-[10px] mb-3">Premium Breakdown</h4>
             <div className="flex flex-col gap-2 font-medium text-[#6B7280]">
-              <div className="flex justify-between">
+              <div className="flex justify-between premium-row">
                 <span>Base Premium:</span>
                 <span className="text-[#1A1A2E] font-semibold">{breakdown.base_premium} ETH</span>
               </div>
@@ -417,7 +418,7 @@ const MintForm: React.FC<MintFormProps> = ({ account, mintPolicy, loading, onMin
                 if (adj.amount === 0) return null;
                 const sign = adj.amount > 0 ? "+" : "";
                 return (
-                  <div key={adj.name} className="flex justify-between">
+                  <div key={adj.name} className="flex justify-between premium-row">
                     <span>{adj.name}:</span>
                     <span className={adj.amount > 0 ? "text-amber-700 font-semibold" : "text-emerald-700 font-semibold"}>
                       {sign}{adj.amount} ETH
@@ -425,7 +426,7 @@ const MintForm: React.FC<MintFormProps> = ({ account, mintPolicy, loading, onMin
                   </div>
                 );
               })}
-              <div className="border-t border-[#E5E0D8] pt-2 mt-1 flex justify-between text-sm font-bold">
+              <div className="border-t border-[#E5E0D8] pt-2 mt-1 flex justify-between text-sm font-bold premium-row">
                 <span className="text-[#1A1A2E]">Total Premium:</span>
                 <span className="text-emerald-700">{breakdown.total} ETH</span>
               </div>
@@ -434,14 +435,15 @@ const MintForm: React.FC<MintFormProps> = ({ account, mintPolicy, loading, onMin
         )}
 
         {/* Wallet preview */}
-        <div className="sm:col-span-2 bg-[#F8F6F1] border border-[#E5E0D8] rounded-xl p-3 flex items-center gap-2">
+        <div className="col-span-1 md:col-span-2 bg-[#F8F6F1] border border-[#E5E0D8] rounded-xl p-3 flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-          <span className="text-[11px] font-mono text-[#1A1A2E]">{account}</span>
+          <span className="text-[11px] font-mono text-[#1A1A2E] hidden md:inline">{account}</span>
+          <span className="text-[11px] font-mono text-[#1A1A2E] inline md:hidden wallet-address">{account ? `${account.slice(0, 6)}...${account.slice(-4)}` : ''}</span>
           <span className="ml-auto text-[10px] text-[#6B7280]">policyholder</span>
         </div>
 
         {/* Submit */}
-        <div className="sm:col-span-2">
+        <div className="col-span-1 md:col-span-2">
           <button
             type="submit"
             disabled={loading}
@@ -552,11 +554,14 @@ interface PoolStats {
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ account, provider, signer, connectWallet }) => {
-  const { mintPolicy, getPolicies, loading, error } = usePolicy(provider, signer, account);
+  const { mintPolicy, getPolicies, loading: hookLoading, error: hookError } = usePolicy(provider, signer, account);
   const [policies, setPolicies]     = useState<Policy[]>([]);
   const [fetching, setFetching]     = useState(false);
   const [toast, setToast]           = useState<Toast | null>(null);
   const [poolStats, setPoolStats]   = useState<PoolStats | null>(null);
+  const [loading, setLoading]       = useState(false);
+  const [error, setError]           = useState<string | null>(null);
+  const location = useLocation();
 
   const showToast = (t: Toast) => {
     setToast(t);
@@ -565,16 +570,25 @@ export const Dashboard: React.FC<DashboardProps> = ({ account, provider, signer,
 
   const fetchPolicies = async () => {
     if (!account) return;
-    setFetching(true);
-    const list = await getPolicies();
-    setPolicies(list);
-    setFetching(false);
+    try {
+      setLoading(true);
+      setError(null);
+      setFetching(true);
+      const list = await getPolicies();
+      setPolicies(list);
+    } catch (err: any) {
+      console.error("Dashboard error:", err);
+      setError("Could not load policies. Make sure your wallet is connected and the blockchain is running.");
+    } finally {
+      setFetching(false);
+      setLoading(false);
+    }
   };
 
   const fetchPoolStats = async () => {
     try {
       const res = await fetch(
-        `http://localhost:8000/pool/stats?t=${Date.now()}`
+        `${API_URL}/pool/stats?t=${Date.now()}`
       );
       const data = await res.json();
       console.log("Pool stats fetched:", data);
@@ -585,9 +599,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ account, provider, signer,
   };
 
   useEffect(() => {
-    fetchPolicies();
-    fetchPoolStats();
-  }, [account]);
+    if (account) {
+      fetchPolicies();
+      fetchPoolStats();
+    }
+  }, [location.pathname, account]);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        fetchPolicies();
+        fetchPoolStats();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, []);
 
   useEffect(() => {
     fetchPoolStats();
@@ -622,6 +649,48 @@ export const Dashboard: React.FC<DashboardProps> = ({ account, provider, signer,
           >
             Connect Wallet
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-[#F8F6F1] dot-grid min-h-screen flex items-center justify-center px-6">
+        <div className="card max-w-md w-full p-10 text-center" style={{ 
+          textAlign: "center", 
+          padding: "80px 20px",
+          color: "#6B7280" 
+        }}>
+          <h2 style={{ color: "#1A1A2E", marginBottom: 12, fontFamily: "'Playfair Display', serif", fontSize: 24 }}>
+            Connection Error
+          </h2>
+          <p>{error}</p>
+          <button 
+            onClick={fetchPolicies}
+            style={{
+              marginTop: 24,
+              padding: "10px 24px",
+              background: "#1A1A2E",
+              color: "white",
+              border: "none",
+              borderRadius: 8,
+              cursor: "pointer"
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="bg-[#F8F6F1] dot-grid min-h-screen flex items-center justify-center px-6">
+        <div className="card max-w-sm w-full p-10 flex flex-col items-center text-center">
+          <Spinner size="md" />
+          <p style={{ marginTop: 16 }}>Loading your policies...</p>
         </div>
       </div>
     );
@@ -667,10 +736,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ account, provider, signer,
         )}
 
         {/* Hook-level error */}
-        {error && !toast && (
+        {hookError && !toast && (
           <div className="flex gap-3 items-start bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 text-sm">
             <span className="mt-0.5">⚠</span>
-            <div><strong>Contract error:</strong> {error}</div>
+            <div><strong>Contract error:</strong> {hookError}</div>
           </div>
         )}
 
@@ -678,7 +747,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ account, provider, signer,
         <MintForm
           account={account}
           mintPolicy={mintPolicy}
-          loading={loading}
+          loading={hookLoading}
           onMinted={handleMinted}
           onError={handleError}
         />
@@ -877,7 +946,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ account, provider, signer,
             </div>
           ) : (
             /* Policy grid */
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {policies.map(policy => (
                 <PolicyCard key={policy.tokenId} policy={policy} />
               ))}
@@ -885,6 +954,84 @@ export const Dashboard: React.FC<DashboardProps> = ({ account, provider, signer,
           )}
         </div>
       </div>
+      <style>{`
+        .premium-row {
+          display: flex;
+          justify-content: space-between;
+          flex-wrap: wrap;
+          gap: 4px;
+        }
+        
+        @media (max-width: 768px) {
+          /* General mobile rules */
+          .card, .p-5, .p-6, .p-8, .p-10, .p-12 {
+            padding: 16px !important;
+          }
+          
+          .px-6, .pt-28, .pb-24 {
+            padding-left: 16px !important;
+            padding-right: 16px !important;
+          }
+
+          body, p, span, label, input, select, textarea, button, a, .text-sm, .text-xs, .text-mono {
+            font-size: calc(100% - 2px) !important;
+          }
+          .serif, h1, h2, h3, h4 {
+            font-size: calc(100% - 2px) !important;
+          }
+          .text-2xl, .serif.text-2xl {
+            font-size: 1.25rem !important;
+          }
+          .text-4xl, .serif.text-4xl, .text-5xl, .serif.text-5xl {
+            font-size: 2rem !important;
+          }
+
+          html, body, #root, .dot-grid {
+            max-width: 100vw !important;
+            overflow-x: hidden !important;
+          }
+
+          /* Fix 1 — Premium Breakdown card text cutoff */
+          .premium-breakdown {
+            font-size: 12px !important;
+          }
+          .premium-row {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            gap: 2px !important;
+          }
+          .premium-row span {
+            width: 100% !important;
+            text-align: left !important;
+            white-space: normal !important;
+            word-break: break-all !important;
+          }
+
+          /* Fix 3 — Wallet address display */
+          .wallet-address {
+            font-size: 11px !important;
+            max-width: 150px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          }
+          
+          /* Fix 6 — Mint Policy NFT button */
+          form button[type="submit"] {
+            width: 100% !important;
+            padding: 16px !important;
+          }
+
+          /* Fix 2 — Dashboard mint form height & padding-bottom */
+          .card {
+            max-height: none !important;
+            height: auto !important;
+          }
+          .pb-24 {
+            padding-bottom: 100px !important;
+          }
+        }
+      `}</style>
     </div>
   );
 };

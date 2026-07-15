@@ -5,11 +5,14 @@ import os
 env_path = Path(__file__).parent / ".env"
 load_dotenv(dotenv_path=env_path)
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from gemini import decode_policy
 import json
+import base64
+import io
+from PIL import Image
 from web3 import Web3
 from oracles import check_weather_trigger, check_flight_delay
 from pricing import (
@@ -72,7 +75,17 @@ class CompareRequest(BaseModel):
     label_a: str = "Policy A"
     label_b: str = "Policy B"
 
-HARDHAT_RPC = "http://127.0.0.1:8545"
+class EvidenceVerifyRequest(BaseModel):
+    claim_description: str
+    policy_type: str
+    claim_amount_eth: float
+    evidence_text: str = ""
+
+class MultiLangDecodeRequest(BaseModel):
+    text: str
+    language: str = "en"
+
+HARDHAT_RPC = os.getenv("BLOCKCHAIN_RPC_URL", "http://127.0.0.1:8545")
 DEPLOYER_PRIVATE_KEY = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
 
 def get_policy_nft_abi():
@@ -388,6 +401,281 @@ POLICY B ({request.label_b}):
             text = text.split("```")[1]
             if text.startswith("json"):
                 text = text[4:]
+        return json.loads(text.strip())
+    except groq.AuthenticationError:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid Groq API key. Please check your GROQ_API_KEY in backend/.env"
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+SUPPORTED_LANGUAGES = {
+    "en": "English",
+    "hi": "Hindi",
+    "ta": "Tamil", 
+    "te": "Telugu",
+    "bn": "Bengali",
+    "mr": "Marathi"
+}
+
+@app.post("/evidence/verify-text")
+async def verify_evidence_text(request: EvidenceVerifyRequest):
+    """
+    AI verifies if the evidence matches the claim description.
+    """
+    from groq import Groq
+    import os, json
+    
+    client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+    
+    prompt = f"""
+You are an insurance fraud detection AI.
+Analyze if the provided evidence supports the claim.
+
+CLAIM DETAILS:
+- Policy Type: {request.policy_type}
+- Description: {request.claim_description}
+- Claim Amount: {request.claim_amount_eth} ETH
+
+EVIDENCE PROVIDED:
+{request.evidence_text}
+
+Return ONLY a JSON object:
+{{
+  "verdict": "APPROVE" or "REJECT" or "MANUAL_REVIEW",
+  "confidence": 0-100,
+  "reason": "one sentence explanation",
+  "red_flags": ["list of suspicious elements if any"],
+  "supporting_elements": ["list of elements that support the claim"],
+  "recommended_action": "approve_claim" or "reject_claim" or "request_more_evidence"
+}}
+
+Be strict but fair. If evidence clearly matches claim, approve.
+If evidence is suspicious or mismatched, reject.
+If evidence is insufficient, request more.
+Return ONLY JSON, no markdown.
+"""
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.1,
+            max_tokens=500
+        )
+        text = response.choices[0].message.content.strip()
+        if text.startswith("```"):
+            parts = text.split("```")
+            if len(parts) > 1:
+                text = parts[1]
+            if text.startswith("json"):
+                text = text[4:]
+        text = text.strip()
+        if text.endswith("```"):
+            text = text[:-3]
+        return json.loads(text.strip())
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Groq API or JSON parsing failed: {str(e)}")
+
+@app.post("/evidence/verify-image")
+async def verify_evidence_image(
+    file: UploadFile = File(...),
+    claim_description: str = Form(...),
+    policy_type: str = Form(...),
+    claim_amount_eth: float = Form(...)
+):
+    """
+    Accept image upload, convert to base64, 
+    send to Groq vision for verification.
+    """
+    contents = await file.read()
+    
+    # Try to extract text using OCR or PDF parser to help LLM text analysis
+    ocr_text = ""
+    filename_lower = file.filename.lower()
+    if filename_lower.endswith(('.png', '.jpg', '.jpeg')):
+        try:
+            image = Image.open(io.BytesIO(contents))
+            import pytesseract
+            ocr_text = pytesseract.image_to_string(image)
+        except Exception as e:
+            print(f"OCR Warning: Pytesseract/PIL failed: {e}")
+    elif filename_lower.endswith('.pdf'):
+        try:
+            import pypdf
+            pdf_reader = pypdf.PdfReader(io.BytesIO(contents))
+            pages_text = []
+            for page in pdf_reader.pages:
+                text = page.extract_text()
+                if text:
+                    pages_text.append(text)
+            ocr_text = "\n".join(pages_text)
+        except Exception as e:
+            print(f"PDF Warning: pypdf failed: {e}")
+
+    evidence_context = f"File: {file.filename}, Size: {len(contents)} bytes"
+    if ocr_text.strip():
+        evidence_text = f"[Uploaded File: {evidence_context}]\nExtracted Content:\n{ocr_text.strip()}"
+    else:
+        evidence_text = f"[Uploaded File: {evidence_context}]\n(No readable text could be extracted from this document/image)"
+
+    verify_request = EvidenceVerifyRequest(
+        claim_description=claim_description,
+        policy_type=policy_type,
+        claim_amount_eth=claim_amount_eth,
+        evidence_text=evidence_text
+    )
+    return await verify_evidence_text(verify_request)
+
+@app.post("/decode/multilang")
+async def decode_multilang(request: MultiLangDecodeRequest):
+    """
+    Decode policy in the user's preferred language.
+    """
+    from groq import Groq
+    import os, json
+    
+    lang_name = SUPPORTED_LANGUAGES.get(request.language, "English")
+    client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+    
+    prompt = f"""
+Analyze this insurance policy. Respond ONLY in {lang_name}.
+Return ONLY this JSON (all text in {lang_name}, max 5 items per list):
+{{
+  "grade": "A/B/C/D/F",
+  "grade_reason": "brief reason in {lang_name}",
+  "summary": "2 sentence summary in {lang_name}",
+  "coverage": ["item1", "item2", "item3"],
+  "exclusions": ["item1", "item2", "item3", "item4", "item5"],
+  "gotchas": ["item1", "item2", "item3"],
+  "language": "{request.language}"
+}}
+No markdown. No explanation. JSON only.
+POLICY:
+{request.text[:3000]}
+"""
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.2,
+            max_tokens=2500
+        )
+        text = response.choices[0].message.content.strip()
+        if text.startswith("```"):
+            parts = text.split("```")
+            if len(parts) > 1:
+                text = parts[1]
+            if text.startswith("json"):
+                text = text[4:]
+        text = text.strip()
+        if text.endswith("```"):
+            text = text[:-3]
+        
+        try:
+            return json.loads(text.strip())
+        except json.JSONDecodeError:
+            # Try to fix truncated JSON by closing open arrays/objects
+            text = text.strip()
+            # Count open brackets and close them
+            open_braces = text.count('{') - text.count('}')
+            open_brackets = text.count('[') - text.count(']')
+            text += ']' * open_brackets
+            text += '}' * open_braces
+            try:
+                return json.loads(text)
+            except:
+                # Fallback: return English decode
+                raise HTTPException(
+                    status_code=500, 
+                    detail="Language parsing failed, try English"
+                )
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/compare/multilang")
+async def compare_multilang(request: CompareRequest, language: str = "en"):
+    """Compare two policies in preferred language"""
+    lang_name = SUPPORTED_LANGUAGES.get(language, "English")
+    
+    prompt = f"""
+You are an expert insurance policy analyst.
+Compare these two insurance policies and respond ENTIRELY in {lang_name}.
+Every field in the JSON must be in {lang_name} language.
+
+Return ONLY this JSON structure with ALL text in {lang_name}:
+{{
+  "winner": "A" or "B" or "TIE",
+  "winner_reason": "one sentence why this policy is better overall in {lang_name}",
+  "summary": {{
+    "policy_a": "2-3 sentence summary of Policy A in {lang_name}",
+    "policy_b": "2-3 sentence summary of Policy B in {lang_name}"
+  }},
+  "grades": {{
+    "policy_a": "A" or "B" or "C" or "D" or "F",
+    "policy_b": "A" or "B" or "C" or "D" or "F"
+  }},
+  "comparison": [
+    {{
+      "category": "category name (e.g. Coverage Limit, Claim Window, Exclusions) in {lang_name}",
+      "policy_a": "what policy A says about this in {lang_name}",
+      "policy_b": "what policy B says about this in {lang_name}",
+      "winner": "A" or "B" or "TIE",
+      "importance": "High" or "Medium" or "Low"
+    }}
+  ],
+  "policy_a_pros": ["advantages in {lang_name}"],
+  "policy_a_cons": ["disadvantages in {lang_name}"],
+  "policy_b_pros": ["advantages in {lang_name}"],
+  "policy_b_cons": ["disadvantages in {lang_name}"],
+  "recommendation": "2-3 sentence recommendation of which policy to choose and why in {lang_name}",
+  "gotchas": {{
+    "policy_a": ["unique trap clauses in A in {lang_name}"],
+    "policy_b": ["unique trap clauses in B in {lang_name}"]
+  }}
+}}
+
+Compare across these categories:
+- Coverage Limit
+- Premium Value
+- Claim Filing Window
+- Exclusions
+- Payout Conditions
+- Renewal Terms
+- Overall Fairness
+
+POLICY A ({request.label_a}):
+{request.policy_a}
+
+POLICY B ({request.label_b}):
+{request.policy_b}
+
+Return ONLY JSON. No markdown. All text in {lang_name}.
+"""
+    import json
+    import groq
+    groq_key = os.getenv("GROQ_API_KEY")
+    client = Groq(api_key=groq_key)
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.2,
+            max_tokens=2000
+        )
+        text = response.choices[0].message.content.strip()
+        if text.startswith("```"):
+            parts = text.split("```")
+            if len(parts) > 1:
+                text = parts[1]
+            if text.startswith("json"):
+                text = text[4:]
+        text = text.strip()
+        if text.endswith("```"):
+            text = text[:-3]
         return json.loads(text.strip())
     except groq.AuthenticationError:
         raise HTTPException(
